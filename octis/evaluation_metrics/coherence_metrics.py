@@ -6,10 +6,7 @@ from gensim.models import KeyedVectors
 import gensim.downloader as api
 import octis.configuration.citations as citations
 import numpy as np
-import itertools
-from scipy import spatial
 from sklearn.metrics import pairwise_distances
-from operator import add
 
 
 class Coherence(AbstractMetric):
@@ -119,11 +116,9 @@ class WECoherencePairwise(AbstractMetric):
             for word in topic[0:self.topk]:
                 if word in self._wv.key_to_index.keys():
                     word_embedding = self._wv.__getitem__(word)
-                    normalized_we = word_embedding / word_embedding.sum()
-                    E.append(normalized_we)
+                    E.append(word_embedding)
             if len(E) > 0:
                 E = np.array(E)
-
                 # Perform cosine similarity between E rows
                 distances = np.sum(1 - pairwise_distances(E, metric='cosine') - np.diag(np.ones(len(E))))
                 topic_coherence = distances/(self.topk*(self.topk-1))
@@ -181,28 +176,15 @@ class WECoherenceCentroid(AbstractMetric):
                 E = []
                 # average vector of the words in topic (centroid)
                 t = np.zeros(self._wv.vector_size)
-                # Create matrix E (normalize word embeddings of
-                # words represented as vectors in wv) and
-                # average vector of the words in topic
                 for word in topic[0:self.topk]:
                     if word in self._wv.key_to_index.keys():
                         word_embedding = self._wv.__getitem__(word)
-                        normalized_we = word_embedding/sum(word_embedding)
-                        E.append(normalized_we)
-                        t = list(map(add, t, word_embedding))
-
-                t = np.array(t)
-                if sum(t) != 0:
-                    t = t/(len(t)*sum(t))
+                        E.append(word_embedding)
+                        t += word_embedding
 
                 if len(E) > 0:
-                    topic_coherence = 0
-                    # Perform cosine similarity between each word embedding in E
-                    # and t.
-                    for word_embedding in E:
-                        distance = spatial.distance.cosine(word_embedding, t)
-                        topic_coherence += distance
-                    topic_coherence = topic_coherence/self.topk
+                    topic_coherence = pairwise_distances(E, np.expand_dims(t, 0), metric='cosine').sum()
+                    topic_coherence = topic_coherence / self.topk
                 else:
                     topic_coherence = -1
 
