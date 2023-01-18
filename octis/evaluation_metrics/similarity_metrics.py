@@ -1,28 +1,28 @@
 from octis.evaluation_metrics.diversity_metrics import WordEmbeddingsInvertedRBO, \
     WordEmbeddingsInvertedRBOCentroid, InvertedRBO
+from octis.evaluation_metrics.utils import KeyedVectorsMixin
 import numpy as np
 from itertools import combinations
 from scipy.spatial.distance import cosine
 from octis.evaluation_metrics.metrics import AbstractMetric
-from gensim.models import KeyedVectors
-import gensim.downloader as api
 
 
 class WordEmbeddingsRBOMatch(WordEmbeddingsInvertedRBO):
-    def __init__(self, word2vec_path=None, binary=True, normalize=True, weight=0.9, topk=10):
+    def __init__(self, weight=0.9, topk=10, normalize=True, model=None, model_name=None):
         """
         Initialize metric WERBO-Match
 
         Parameters
         ----------
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
         :param weight: Weight of each agreement at depth d. When set to 1.0, there is no weight, the rbo returns to
         average overlap. (Default 0.9)
-        :param binary: If True, indicates whether the data is in binary word2vec format.
         :param normalize: if true, normalize the cosine similarity
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
-        super().__init__(word2vec_path=word2vec_path, binary=binary, normalize=normalize, weight=weight, topk=topk)
+        super().__init__(normalize=normalize, weight=weight, topk=topk, model=model, model_name=model_name)
 
     def score(self, model_output):
         """
@@ -34,20 +34,21 @@ class WordEmbeddingsRBOMatch(WordEmbeddingsInvertedRBO):
 
 
 class WordEmbeddingsRBOCentroid(WordEmbeddingsInvertedRBOCentroid):
-    def __init__(self, word2vec_path=None, binary=True, normalize=True, weight=0.9, topk=10):
+    def __init__(self, normalize=True, weight=0.9, topk=10, model=None, model_name=None):
         """
         Initialize metric WERBO-Centroid
 
         Parameters
         ----------
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
         :param weight: Weight of each agreement at depth d. When set to 1.0, there is no weight, the rbo returns to
         average overlap. (Default 0.9)
-        :param binary: If True, indicates whether the data is in binary word2vec format.
         :param normalize: if true, normalize the cosine similarity
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
-        super().__init__(word2vec_path=word2vec_path, binary=binary, normalize=normalize, weight=weight, topk=topk)
+        super().__init__(normalize=normalize, weight=weight, topk=topk, model=model, model_name=model_name)
 
     def score(self, model_output):
         """
@@ -58,24 +59,21 @@ class WordEmbeddingsRBOCentroid(WordEmbeddingsInvertedRBOCentroid):
         return 1 - super(WordEmbeddingsRBOCentroid, self).score(model_output)
 
 
-class WordEmbeddingsPairwiseSimilarity(AbstractMetric):
-    def __init__(self, word2vec_path=None, topk=10, binary=False):
+class WordEmbeddingsPairwiseSimilarity(AbstractMetric, KeyedVectorsMixin):
+    def __init__(self, topk=10, model=None, model_name=None):
         """
         Initialize metric WE pairwise similarity
 
         Parameters
         ----------
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
-        :param binary: If True, indicates whether the data is in binary word2vec format.
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
-        if word2vec_path is None:
-            self.wv = api.load('word2vec-google-news-300')
-        else:
-            self.wv = KeyedVectors.load_word2vec_format( word2vec_path, binary=binary)
-
         self.topk = topk
+        self.load_keyedvectors(model, model_name)
 
     def score(self, model_output):
         """
@@ -103,24 +101,21 @@ class WordEmbeddingsPairwiseSimilarity(AbstractMetric):
             return sum_sim / count
 
 
-class WordEmbeddingsCentroidSimilarity(AbstractMetric):
-    def __init__(self, word2vec_path=None, topk=10, binary=False):
+class WordEmbeddingsCentroidSimilarity(AbstractMetric, KeyedVectorsMixin):
+    def __init__(self, topk=10, model=None, model_name=None):
         """
         Initialize metric WE centroid similarity
 
         Parameters
         ----------
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
-        :param binary: If True, indicates whether the data is in binary word2vec format.
-
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
-        if word2vec_path is None:
-            self.wv = api.load('word2vec-google-news-300')
-        else:
-            self.wv = KeyedVectors.load_word2vec_format(word2vec_path, binary=binary)
         self.topk = topk
+        self.load_keyedvectors(model, model_name)
 
     def score(self, model_output):
         """
@@ -160,24 +155,21 @@ def get_word2index(list1, list2):
     return word2index
 
 
-class WordEmbeddingsWeightedSumSimilarity(AbstractMetric):
-    def __init__(self, id2word, word2vec_path=None, topk=10, binary=False):
+class WordEmbeddingsWeightedSumSimilarity(AbstractMetric, KeyedVectorsMixin):
+    def __init__(self, id2word, topk=10, model=None, model_name=None):
         """
         Initialize metric WE Weighted Sum similarity
 
         :param id2word: dictionary mapping each id to the word of the vocabulary
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
-        :param binary: If True, indicates whether the data is in binary word2vec format.
-
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
-        if word2vec_path is None:
-            self.wv = api.load('word2vec-google-news-300')
-        else:
-            self.wv = KeyedVectors.load_word2vec_format(word2vec_path, binary=binary)
         self.topk = topk
         self.id2word = id2word
+        self.load_keyedvectors(model, model_name)
 
     def score(self, model_output):
         """
@@ -256,4 +248,3 @@ class PairwiseJaccardSimilarity(AbstractMetric):
             count = count + 1
             sim = sim + (float(intersection) / union)
         return sim / count
-

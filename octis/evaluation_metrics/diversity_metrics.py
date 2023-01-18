@@ -1,12 +1,11 @@
 from octis.evaluation_metrics.metrics import AbstractMetric
+from octis.evaluation_metrics.utils import KeyedVectorsMixin
 import octis.configuration.citations as citations
 import itertools
 import numpy as np
 from octis.evaluation_metrics.rbo import rbo
 from octis.evaluation_metrics.word_embeddings_rbo import word_embeddings_rbo
 from octis.evaluation_metrics.word_embeddings_rbo_centroid import word_embeddings_rbo as weirbo_centroid
-import gensim.downloader as api
-from gensim.models import KeyedVectors
 
 
 class TopicDiversity(AbstractMetric):
@@ -89,30 +88,27 @@ class InvertedRBO(AbstractMetric):
             return 1 - np.mean(collect)
 
 
-class WordEmbeddingsInvertedRBO(AbstractMetric):
+class WordEmbeddingsInvertedRBO(AbstractMetric, KeyedVectorsMixin):
 
-    def __init__(self, topk=10, weight=0.9, normalize=True, word2vec_path=None, binary=True):
+    def __init__(self, topk=10, weight=0.9, normalize=True, model=None, model_name=None):
         """
         Initialize metric WE-IRBO-Match
 
         Parameters
         ----------
         :param topk: top k words on which the topic diversity will be computed
-        :param word2vec_path: word embedding space in gensim word2vec format
         :param weight: Weight of each agreement at depth d. When set to 1.0, there is no weight, the rbo returns to
         average overlap. (Default 0.9)
         :param normalize: if true, normalize the cosine similarity
+        :model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        :model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
         self.topk = topk
         self.weight = weight
         self.norm = normalize
-        self.binary = binary
-        self.word2vec_path = word2vec_path
-        if word2vec_path is None:
-            self._wv = api.load('word2vec-google-news-300')
-        else:
-            self._wv = KeyedVectors.load_word2vec_format(word2vec_path, binary=self.binary)
+        self.load_keyedvectors(model, model_name)
 
     def score(self, model_output):
         """
@@ -132,7 +128,7 @@ class WordEmbeddingsInvertedRBO(AbstractMetric):
                 indexed_list2 = [word2index[word] for word in list2]
                 rbo_val = word_embeddings_rbo(
                     indexed_list1[:self.topk], indexed_list2[:self.topk], p=self.weight,
-                    index2word=index2word, word2vec=self._wv, norm=self.norm)[2]
+                    index2word=index2word, word2vec=self.wv, norm=self.norm)[2]
                 collect.append(rbo_val)
             return 1 - np.mean(collect)
 
@@ -145,17 +141,12 @@ def get_word2index(list1, list2):
 
 
 class WordEmbeddingsInvertedRBOCentroid(AbstractMetric):
-    def __init__(self, topk=10, weight=0.9, normalize=True, word2vec_path=None, binary=True):
+    def __init__(self, topk=10, weight=0.9, normalize=True, model=None, model_name=None):
         super().__init__()
         self.topk = topk
         self.weight = weight
         self.norm = normalize
-        self.binary = binary
-        self.word2vec_path = word2vec_path
-        if word2vec_path is None:
-            self.wv = api.load('word2vec-google-news-300')
-        else:
-            self.wv = KeyedVectors.load_word2vec_format( word2vec_path, binary=self.binary)
+        self.load_keyedvectors(model, model_name)
 
     def score(self, model_output):
         """

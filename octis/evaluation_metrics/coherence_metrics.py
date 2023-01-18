@@ -1,12 +1,10 @@
 from octis.evaluation_metrics.metrics import AbstractMetric
+from octis.evaluation_metrics.utils import KeyedVectorsMixin
 from octis.dataset.dataset import Dataset
 from gensim.corpora.dictionary import Dictionary
 from gensim.models import CoherenceModel
-from gensim.models import KeyedVectors
-import gensim.downloader as api
 import octis.configuration.citations as citations
 import numpy as np
-import itertools
 from scipy import spatial
 from sklearn.metrics import pairwise_distances
 from operator import add
@@ -64,29 +62,24 @@ class Coherence(AbstractMetric):
             return npmi.get_coherence()
 
 
-class WECoherencePairwise(AbstractMetric):
-    def __init__(self, word2vec_path=None, binary=False, topk=10):
+class WECoherencePairwise(AbstractMetric, KeyedVectorsMixin):
+    def __init__(self, topk=10, model=None, model_name=None):
         """
         Initialize metric
 
         Parameters
         ----------
-        dictionary with keys
         topk : how many most likely words to consider
-        word2vec_path : if word2vec_file is specified retrieves word embeddings file (in word2vec format)
-        to compute similarities, otherwise 'word2vec-google-news-300' is downloaded
-        binary : True if the word2vec file is binary, False otherwise (default False)
+        model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
 
-        self.binary = binary
         self.topk = topk
-        self.word2vec_path = word2vec_path
-        if word2vec_path is None:
-            self._wv = api.load('word2vec-google-news-300')
-        else:
-            self._wv = KeyedVectors.load_word2vec_format(
-                word2vec_path, binary=self.binary)
+        self.default_model_name = 'word2vec-google-news-300' # set default_model_name here.
+        self.load_keyedvectors(model, model_name)
+
 
     def info(self):
         return {
@@ -117,8 +110,8 @@ class WECoherencePairwise(AbstractMetric):
             # Create matrix E (normalize word embeddings of
             # words represented as vectors in wv)
             for word in topic[0:self.topk]:
-                if word in self._wv.key_to_index.keys():
-                    word_embedding = self._wv.__getitem__(word)
+                if word in self.wv.key_to_index.keys():
+                    word_embedding = self.wv.__getitem__(word)
                     normalized_we = word_embedding / word_embedding.sum()
                     E.append(normalized_we)
             if len(E) > 0:
@@ -136,26 +129,23 @@ class WECoherencePairwise(AbstractMetric):
         return result
 
 
-class WECoherenceCentroid(AbstractMetric):
-    def __init__(self, topk=10, word2vec_path=None, binary=True):
+class WECoherenceCentroid(AbstractMetric, KeyedVectorsMixin):
+    def __init__(self, topk=10, model=None, model_name=None):
         """
         Initialize metric
 
         Parameters
         ----------
         topk : how many most likely words to consider
-        w2v_model_path : a word2vector model path, if not provided, google news 300 will be used instead
+        model : Either None, a KeyedVectors instance, or a dict with key is word (str) and value is
+        word embedding (1d numpy array).
+        model_name : A string specify the pre-train embedding name to load. Only used when model is None.
         """
         super().__init__()
 
         self.topk = topk
-        self.binary = binary
-        self.word2vec_path = word2vec_path
-        if self.word2vec_path is None:
-            self._wv = api.load('word2vec-google-news-300')
-        else:
-            self._wv = KeyedVectors.load_word2vec_format(
-                self.word2vec_path, binary=self.binary)
+        self.default_model_name = 'word2vec-google-news-300'
+        self.load_keyedvectors(model, model_name)
 
     @staticmethod
     def info():
@@ -180,13 +170,13 @@ class WECoherenceCentroid(AbstractMetric):
             for topic in topics:
                 E = []
                 # average vector of the words in topic (centroid)
-                t = np.zeros(self._wv.vector_size)
+                t = np.zeros(self.wv.vector_size)
                 # Create matrix E (normalize word embeddings of
                 # words represented as vectors in wv) and
                 # average vector of the words in topic
                 for word in topic[0:self.topk]:
-                    if word in self._wv.key_to_index.keys():
-                        word_embedding = self._wv.__getitem__(word)
+                    if word in self.wv.key_to_index.keys():
+                        word_embedding = self.wv.__getitem__(word)
                         normalized_we = word_embedding/sum(word_embedding)
                         E.append(normalized_we)
                         t = list(map(add, t, word_embedding))
